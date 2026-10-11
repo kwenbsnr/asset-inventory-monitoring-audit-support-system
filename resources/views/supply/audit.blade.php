@@ -1,49 +1,54 @@
 @extends('layouts.app')
 
 @section('title', 'Audit Trail')
-@section('subtitle', 'Full transaction history')
+@section('subtitle', 'Full chronological system security and accountability log')
 
 @section('content')
-<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-    <div class="search-bar" style="max-width:300px;">
+<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
+    <div class="search-bar" style="max-width:320px;">
         <span>🔍</span>
-        <input type="text" id="auditSearch" placeholder="Search by asset or action..." onkeyup="filterAudit()">
+        <input type="text" id="auditSearch" placeholder="Search by asset, user, action..." onkeyup="filterAudit()">
     </div>
-    <select class="form-control" id="actionFilter" style="width:150px;" onchange="filterAudit()">
+    <select class="form-control" id="actionFilter" style="width:180px;" onchange="filterAudit()">
         <option value="">All Actions</option>
         @foreach($actionTypes as $type)
-            <option value="{{ $type }}">{{ ucfirst($type) }}</option>
+            <option value="{{ $type }}">{{ ucfirst(str_replace('_', ' ', $type)) }}</option>
         @endforeach
     </select>
-    <a href="{{ route('audit.export') }}" class="btn btn-sm">⬇ Export Log</a>
+    <a href="{{ route('supply.audit.export') }}" class="btn btn-sm btn-navy" style="margin-left:auto;">⬇ Export Audit Log (CSV)</a>
 </div>
 
 <div class="card">
     <div class="card-header">
-        <span>📋</span><span class="card-title">System Audit Trail</span>
+        <span>📋</span><span class="card-title">System Audit Trail Records</span>
         <span style="margin-left:auto;font-size:12px;color:var(--gray-500);" id="auditCount">{{ count($auditLogs) }} entries</span>
     </div>
-    <div class="card-body" id="auditLogBody">
+    <div class="card-body" id="auditLogBody" style="padding:8px 16px;">
         @forelse($auditLogs as $log)
         <div class="trail-item" data-action="{{ $log->action_type }}">
             <div class="trail-dot
-                @if($log->action_type == 'registration') trail-dot-reg
-                @elseif($log->action_type == 'transfer') trail-dot-transfer
-                @elseif($log->action_type == 'qr_scan') trail-dot-scan
-                @elseif($log->action_type == 'update') trail-dot-update
+                @if(stripos($log->action_type, 'reg') !== false) trail-dot-reg
+                @elseif(stripos($log->action_type, 'transfer') !== false) trail-dot-transfer
+                @elseif(stripos($log->action_type, 'scan') !== false) trail-dot-scan
+                @elseif(stripos($log->action_type, 'update') !== false) trail-dot-update
                 @else trail-dot-verify @endif">
-                @if($log->action_type == 'registration') ➕
-                @elseif($log->action_type == 'transfer') ⇄
-                @elseif($log->action_type == 'qr_scan') 📷
-                @elseif($log->action_type == 'update') ✎
+                @if(stripos($log->action_type, 'reg') !== false) ➕
+                @elseif(stripos($log->action_type, 'transfer') !== false) ⇄
+                @elseif(stripos($log->action_type, 'scan') !== false) 📷
+                @elseif(stripos($log->action_type, 'update') !== false) ✎
                 @else ✓ @endif
             </div>
             <div class="trail-content">
-                <div class="trail-action">{{ $log->module }}</div>
+                <div class="trail-action">{{ $log->module ?? $log->action_type }} <span class="badge badge-inactive" style="margin-left:6px;font-size:10px;">{{ strtoupper($log->action_type) }}</span></div>
                 <div class="trail-meta">
-                    {{ $log->asset_code ?? 'N/A' }} ·
-                    {{ $log->user_name }} ·
-                    {{ $log->performed_at }}
+                    @if($log->asset_code)
+                        <strong>{{ $log->asset_code }}</strong> ({{ $log->description ?? 'Property' }}) ·
+                    @endif
+                    User: <strong>{{ $log->user_name }}</strong> ·
+                    Timestamp: {{ $log->performed_at }}
+                    @if(isset($log->ip_address) && $log->ip_address)
+                        · IP: {{ $log->ip_address }}
+                    @endif
                 </div>
             </div>
         </div>
@@ -58,8 +63,8 @@
 
 <script>
 function filterAudit() {
-    const search = document.getElementById('auditSearch').value.toLowerCase();
-    const action = document.getElementById('actionFilter').value;
+    const search = document.getElementById('auditSearch').value.toLowerCase().trim();
+    const action = document.getElementById('actionFilter').value.trim();
 
     const items = document.querySelectorAll('#auditLogBody .trail-item');
     let visible = 0;

@@ -20,6 +20,9 @@ use App\Http\Controllers\Admin\UserController;
 
 // ========== AUTHENTICATION ROUTES ==========
 Route::get('/login', function () {
+    if (session()->has('user_id')) {
+        return redirect()->route('supply.dashboard');
+    }
     return view('auth.login');
 })->name('login');
 
@@ -30,19 +33,22 @@ Route::post('/login', function (Request $request) {
     ]);
 
     $user = DB::table('users')
-        ->join('personnel', 'users.personnel_id', '=', 'personnel.id')
+        ->join('personnel', 'users.personnel_id', '=', 'personnel.personnel_id')
         ->where('users.username', $request->input('username'))
         ->where('users.is_active', 1)
         ->select('users.*', 'personnel.full_name')
         ->first();
 
     if ($user && Hash::check($request->input('password'), $user->password_hash)) {
+        DB::table('users')->where('users_id', $user->users_id)->update(['last_login' => now()]);
+
         session([
-            'user_id' => $user->id,
+            'user_id' => $user->users_id,
             'user_role' => $user->role,
             'user_name' => $user->full_name,
             'personnel_id' => $user->personnel_id
         ]);
+
         return redirect()->route('supply.dashboard');
     }
 
@@ -103,6 +109,49 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/custodians/{id}', [PersonnelController::class, 'destroy'])->name('custodians.destroy');
     });
 
+    // ========== BACKWARD-COMPATIBLE ROUTE ALIASES ==========
+    Route::get('/dashboard', [AssetController::class, 'dashboard'])->name('dashboard');
+
+    Route::name('assets.')->prefix('assets')->group(function () {
+        Route::get('/', [AssetController::class, 'index'])->name('index');
+        Route::get('/create', [AssetController::class, 'create'])->name('create');
+        Route::post('/', [AssetController::class, 'store'])->name('store');
+        Route::get('/{id}', [AssetController::class, 'show'])->name('show');
+        Route::get('/{id}/edit', [AssetController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [AssetController::class, 'update'])->name('update');
+        Route::delete('/{id}', [AssetController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::name('transfers.')->prefix('transfers')->group(function () {
+        Route::get('/', [TransferController::class, 'index'])->name('index');
+        Route::post('/', [TransferController::class, 'store'])->name('store');
+        Route::post('/{id}/acknowledge', [TransferController::class, 'acknowledge'])->name('acknowledge');
+    });
+
+    Route::name('qr.')->prefix('qr')->group(function () {
+        Route::get('/', [QRController::class, 'index'])->name('index');
+        Route::post('/scan', [QRController::class, 'scan'])->name('scan');
+        Route::get('/search', [QRController::class, 'search'])->name('search');
+        Route::get('/generate/{assetId}', [QRController::class, 'generateQR'])->name('generate');
+    });
+
+    Route::name('audit.')->prefix('audit')->group(function () {
+        Route::get('/', [AuditController::class, 'index'])->name('index');
+        Route::get('/export', [AuditController::class, 'export'])->name('export');
+    });
+
+    Route::name('reports.')->prefix('reports')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::post('/generate', [ReportController::class, 'generate'])->name('generate');
+    });
+
+    Route::name('custodians.')->prefix('custodians')->group(function () {
+        Route::get('/', [PersonnelController::class, 'index'])->name('index');
+        Route::post('/', [PersonnelController::class, 'store'])->name('store');
+        Route::put('/{id}', [PersonnelController::class, 'update'])->name('update');
+        Route::delete('/{id}', [PersonnelController::class, 'destroy'])->name('destroy');
+    });
+
     // ========== ADMIN ROUTES ==========
     Route::prefix('admin')->middleware(['admin'])->name('admin.')->group(function () {
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
@@ -110,14 +159,12 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
     });
-
-    // Alias for dashboard (redirect to supply dashboard)
-    Route::get('/dashboard', function () {
-        return redirect()->route('supply.dashboard');
-    })->name('dashboard');
 });
 
 // Fallback route for undefined routes
 Route::fallback(function () {
+    if (session()->has('user_id')) {
+        return redirect()->route('supply.dashboard');
+    }
     return redirect()->route('login');
 });

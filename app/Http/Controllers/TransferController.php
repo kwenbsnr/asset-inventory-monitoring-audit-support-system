@@ -11,12 +11,12 @@ class TransferController extends Controller
     public function index()
     {
         $pendingTransfers = DB::table('asset_transfers')
-            ->join('assets', 'asset_transfers.asset_id', '=', 'assets.id')
-            ->leftJoin('personnel as from_p', 'asset_transfers.from_custodian_id', '=', 'from_p.id')
-            ->leftJoin('personnel as to_p', 'asset_transfers.to_custodian_id', '=', 'to_p.id')
-            ->leftJoin('offices as from_o', 'asset_transfers.from_office_id', '=', 'from_o.id')
-            ->leftJoin('offices as to_o', 'asset_transfers.to_office_id', '=', 'to_o.id')
-            ->leftJoin('personnel as approver', 'asset_transfers.approved_by', '=', 'approver.id')
+            ->leftJoin('assets', 'asset_transfers.asset_id', '=', 'assets.asset_id')
+            ->leftJoin('personnel as from_p', 'asset_transfers.from_custodian_id', '=', 'from_p.personnel_id')
+            ->leftJoin('personnel as to_p', 'asset_transfers.to_custodian_id', '=', 'to_p.personnel_id')
+            ->leftJoin('offices as from_o', 'asset_transfers.from_office_id', '=', 'from_o.office_id')
+            ->leftJoin('offices as to_o', 'asset_transfers.to_office_id', '=', 'to_o.office_id')
+            ->leftJoin('personnel as approver', 'asset_transfers.approved_by', '=', 'approver.personnel_id')
             ->select(
                 'asset_transfers.*',
                 'assets.asset_code',
@@ -27,16 +27,16 @@ class TransferController extends Controller
                 'to_o.name as to_office_name',
                 'approver.full_name as approver_name'
             )
-            ->where('asset_transfers.status', 'pending')
+            ->whereIn('asset_transfers.status', ['pending', 'approved'])
             ->orderBy('asset_transfers.created_at', 'desc')
             ->get();
 
         $completedTransfers = DB::table('asset_transfers')
-            ->join('assets', 'asset_transfers.asset_id', '=', 'assets.id')
-            ->leftJoin('personnel as from_p', 'asset_transfers.from_custodian_id', '=', 'from_p.id')
-            ->leftJoin('personnel as to_p', 'asset_transfers.to_custodian_id', '=', 'to_p.id')
-            ->leftJoin('offices as from_o', 'asset_transfers.from_office_id', '=', 'from_o.id')
-            ->leftJoin('offices as to_o', 'asset_transfers.to_office_id', '=', 'to_o.id')
+            ->leftJoin('assets', 'asset_transfers.asset_id', '=', 'assets.asset_id')
+            ->leftJoin('personnel as from_p', 'asset_transfers.from_custodian_id', '=', 'from_p.personnel_id')
+            ->leftJoin('personnel as to_p', 'asset_transfers.to_custodian_id', '=', 'to_p.personnel_id')
+            ->leftJoin('offices as from_o', 'asset_transfers.from_office_id', '=', 'from_o.office_id')
+            ->leftJoin('offices as to_o', 'asset_transfers.to_office_id', '=', 'to_o.office_id')
             ->select(
                 'asset_transfers.*',
                 'assets.asset_code',
@@ -46,16 +46,16 @@ class TransferController extends Controller
                 'from_o.name as from_office_name',
                 'to_o.name as to_office_name'
             )
-            ->where('asset_transfers.status', 'completed')
+            ->where('asset_transfers.status', 'acknowledged')
             ->orderBy('asset_transfers.created_at', 'desc')
             ->get();
 
         $allTransfers = DB::table('asset_transfers')
-            ->join('assets', 'asset_transfers.asset_id', '=', 'assets.id')
-            ->leftJoin('personnel as from_p', 'asset_transfers.from_custodian_id', '=', 'from_p.id')
-            ->leftJoin('personnel as to_p', 'asset_transfers.to_custodian_id', '=', 'to_p.id')
-            ->leftJoin('offices as from_o', 'asset_transfers.from_office_id', '=', 'from_o.id')
-            ->leftJoin('offices as to_o', 'asset_transfers.to_office_id', '=', 'to_o.id')
+            ->leftJoin('assets', 'asset_transfers.asset_id', '=', 'assets.asset_id')
+            ->leftJoin('personnel as from_p', 'asset_transfers.from_custodian_id', '=', 'from_p.personnel_id')
+            ->leftJoin('personnel as to_p', 'asset_transfers.to_custodian_id', '=', 'to_p.personnel_id')
+            ->leftJoin('offices as from_o', 'asset_transfers.from_office_id', '=', 'from_o.office_id')
+            ->leftJoin('offices as to_o', 'asset_transfers.to_office_id', '=', 'to_o.office_id')
             ->select(
                 'asset_transfers.*',
                 'assets.asset_code',
@@ -70,9 +70,9 @@ class TransferController extends Controller
             ->get();
 
         // For the form dropdowns
-        $assets = DB::table('assets')->where('status', 'active')->get();
-        $personnel = DB::table('personnel')->where('is_active', 1)->get();
-        $offices = DB::table('offices')->get();
+        $assets = DB::table('assets')->where('status', 'active')->orderBy('asset_code')->get();
+        $personnel = DB::table('personnel')->where('is_active', 1)->orderBy('full_name')->get();
+        $offices = DB::table('offices')->orderBy('name')->get();
 
         return view('supply.transfers', compact(
             'pendingTransfers', 'completedTransfers', 'allTransfers',
@@ -83,27 +83,29 @@ class TransferController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'asset_id' => 'required|exists:assets,id',
-            'to_custodian_id' => 'required|exists:personnel,id',
-            'to_office_id' => 'required|exists:offices,id',
+            'asset_id' => 'required',
+            'to_custodian_id' => 'required',
+            'to_office_id' => 'required',
             'transfer_date' => 'required|date',
             'purpose' => 'nullable|string|max:255'
         ]);
 
+        $assetId = $request->input('asset_id');
+
         // Get current active custody
         $currentCustody = DB::table('asset_custodies')
-            ->where('asset_id', $request->input('asset_id'))
+            ->where('asset_id', $assetId)
             ->where('status', 'active')
             ->first();
 
         // Generate transfer number
         $lastTransfer = DB::table('asset_transfers')->orderBy('id', 'desc')->first();
-        $nextId = $lastTransfer ? $lastTransfer->id + 1 : 1;
-        $transferNumber = 'TRF-2026-' . str_pad($nextId, 3, '0', STR_PAD_LEFT);
+        $nextId = $lastTransfer ? ($lastTransfer->id + 1) : 1;
+        $transferNumber = 'TR-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
 
         // Insert transfer
-        DB::table('asset_transfers')->insert([
-            'asset_id' => $request->input('asset_id'),
+        $transferId = DB::table('asset_transfers')->insertGetId([
+            'asset_id' => $assetId,
             'from_custodian_id' => $currentCustody ? $currentCustody->custodian_id : null,
             'to_custodian_id' => $request->input('to_custodian_id'),
             'from_office_id' => $currentCustody ? $currentCustody->office_id : null,
@@ -112,65 +114,80 @@ class TransferController extends Controller
             'purpose' => $request->input('purpose'),
             'transfer_date' => $request->input('transfer_date'),
             'approved_by' => Session::get('personnel_id', 1),
-            'status' => 'pending',
-            'remarks' => $request->input('remarks'),
+            'status' => 'approved',
+            'remarks' => $request->input('purpose'),
             'created_at' => now()
         ]);
 
         // Update asset status
         DB::table('assets')
-            ->where('id', $request->input('asset_id'))
+            ->where('asset_id', $assetId)
+            ->orWhere('id', $assetId)
             ->update([
                 'status' => 'transferred',
                 'updated_at' => now()
             ]);
 
         // Log to audit trail
-        $this->logAudit($request->input('asset_id'), 'transfer', 'Transfer initiated', null, json_encode($request->all()));
+        $this->logAudit($assetId, 'transfer', 'Transfer initiated', null, json_encode($request->all()));
 
         return redirect()->route('supply.transfers.index')->with('success', 'Transfer request created successfully!');
     }
 
     public function acknowledge(int $id)
     {
+        $transfer = DB::table('asset_transfers')->where('id', $id)->first();
+
+        if (!$transfer) {
+            return redirect()->route('supply.transfers.index')->with('error', 'Transfer record not found.');
+        }
+
         DB::table('asset_transfers')
             ->where('id', $id)
             ->update([
-                'status' => 'completed',
+                'status' => 'acknowledged',
                 'acknowledged_at' => now()
             ]);
 
-        $transfer = DB::table('asset_transfers')->where('id', $id)->first();
-
-        // Update custody record
         // End current custody
         DB::table('asset_custodies')
             ->where('asset_id', $transfer->asset_id)
             ->where('status', 'active')
             ->update([
-                'end_date' => now(),
-                'status' => 'ended'
+                'end_date' => now()->toDateString(),
+                'status' => 'transferred'
             ]);
 
         // Start new custody
+        $propNum = 'PAR-' . date('Y') . '-' . str_pad($transfer->id, 3, '0', STR_PAD_LEFT);
         DB::table('asset_custodies')->insert([
             'asset_id' => $transfer->asset_id,
             'custodian_id' => $transfer->to_custodian_id,
             'office_id' => $transfer->to_office_id,
-            'effectivity_date' => now(),
-            'par_number' => 'PAR-' . date('Y') . '-' . str_pad($transfer->id, 3, '0', STR_PAD_LEFT),
+            'effectivity_date' => now()->toDateString(),
+            'property_number' => $propNum,
             'status' => 'active',
             'created_at' => now()
         ]);
 
+        // Update asset location/office and restore status to active
+        DB::table('assets')
+            ->where('asset_id', $transfer->asset_id)
+            ->orWhere('id', $transfer->asset_id)
+            ->update([
+                'office_id' => $transfer->to_office_id,
+                'status' => 'active',
+                'updated_at' => now()
+            ]);
+
         $this->logAudit($transfer->asset_id, 'transfer', 'Transfer acknowledged', null, json_encode(['transfer_id' => $id]));
 
-        return redirect()->route('supply.transfers.index')->with('success', 'Transfer acknowledged successfully!');
+        return redirect()->route('supply.transfers.index')->with('success', 'Transfer acknowledged successfully! Asset custody updated.');
     }
 
     private function logAudit(?int $assetId, string $actionType, string $module, ?string $oldValues, ?string $newValues)
     {
-        $userId = Session::get('personnel_id', 1);
+        $userId = Session::get('personnel_id') ?: Session::get('user_id', 1);
 
         DB::table('audit_trail')->insert([
             'asset_id' => $assetId,

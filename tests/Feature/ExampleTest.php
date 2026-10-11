@@ -2,18 +2,25 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
     /**
-     * A basic test example.
+     * Test the login page returns 200.
      */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_login_page_returns_a_successful_response(): void
+    {
+        $response = $this->get('/login');
+        $response->assertStatus(200);
+    }
+
+    /**
+     * Test unauthenticated users are redirected to login.
+     */
+    public function test_unauthenticated_user_redirected_to_login(): void
     {
         $response = $this->get('/');
-
-        $response->assertStatus(200);
+        $response->assertRedirect('/login');
     }
 }

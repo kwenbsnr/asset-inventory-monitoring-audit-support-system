@@ -11,16 +11,14 @@ class UserController extends Controller
 {
     public function index()
     {
-        // Get all users with their personnel info
         $users = DB::table('users')
-            ->join('personnel', 'users.personnel_id', '=', 'personnel.id')
+            ->leftJoin('personnel', 'users.personnel_id', '=', 'personnel.personnel_id')
             ->select('users.*', 'personnel.full_name', 'personnel.position', 'personnel.office_id')
             ->get();
 
         $personnel = DB::table('personnel')
-            ->whereNotIn('id', function($query) {
-                $query->select('personnel_id')->from('users')->whereNotNull('personnel_id');
-            })
+            ->where('is_active', 1)
+            ->orderBy('full_name')
             ->get();
 
         return view('admin.users', compact('users', 'personnel'));
@@ -29,19 +27,25 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'personnel_id' => 'required|exists:personnel,id',
+            'personnel_id' => 'required',
             'username' => 'required|string|max:80|unique:users,username',
             'password' => 'required|string|min:6',
-            'role' => 'required|in:admin,supply_officer'
+            'role' => 'required'
         ]);
 
+        $role = $request->input('role');
+        if ($role === 'supply_officer') {
+            $role = 'asset_manager';
+        }
+
         DB::table('users')->insert([
-            'personnel_id' => $request->personnel_id,
-            'username' => $request->username,
-            'password_hash' => Hash::make($request->password),
-            'role' => $request->role,
+            'personnel_id' => $request->input('personnel_id'),
+            'username' => $request->input('username'),
+            'password_hash' => Hash::make($request->input('password')),
+            'role' => $role,
             'is_active' => 1,
-            'created_at' => now()
+            'created_at' => now(),
+            'updated_at' => now()
         ]);
 
         return redirect()->route('admin.users.index')->with('success', 'User created successfully!');
@@ -50,15 +54,21 @@ class UserController extends Controller
     public function update(Request $request, int $id)
     {
         $request->validate([
-            'role' => 'required|in:admin,supply_officer',
+            'role' => 'required',
             'is_active' => 'required|boolean'
         ]);
 
+        $role = $request->input('role');
+        if ($role === 'supply_officer') {
+            $role = 'asset_manager';
+        }
+
         DB::table('users')
-            ->where('id', $id)
+            ->where('users_id', $id)
+            ->orWhere('id', $id)
             ->update([
-                'role' => $request->role,
-                'is_active' => $request->is_active,
+                'role' => $role,
+                'is_active' => $request->input('is_active'),
                 'updated_at' => now()
             ]);
 
@@ -67,7 +77,11 @@ class UserController extends Controller
 
     public function destroy(int $id)
     {
-        DB::table('users')->where('id', $id)->delete();
+        DB::table('users')
+            ->where('users_id', $id)
+            ->orWhere('id', $id)
+            ->delete();
+
         return redirect()->route('admin.users.index')->with('success', 'User deleted successfully!');
     }
 }

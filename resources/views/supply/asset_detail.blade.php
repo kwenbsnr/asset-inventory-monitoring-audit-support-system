@@ -16,10 +16,12 @@
                 <span class="badge badge-maintenance"><span class="dot"></span>Maintenance</span>
             @elseif($asset->status == 'transferred')
                 <span class="badge badge-transferred"><span class="dot"></span>Transferred</span>
-            @elseif($asset->status == 'for_disposal')
+            @elseif($asset->status == 'for_disposal' || $asset->status == 'pending_disposal')
                 <span class="badge badge-disposed"><span class="dot"></span>For Disposal</span>
             @elseif($asset->status == 'missing')
                 <span class="badge badge-missing"><span class="dot"></span>Missing</span>
+            @elseif($asset->status == 'disposed')
+                <span class="badge badge-disposed"><span class="dot"></span>Disposed</span>
             @endif
         </span>
     </div>
@@ -28,41 +30,41 @@
             <div>
                 <div style="margin-bottom:12px;">
                     <div style="font-size:12px;color:var(--gray-500);">Description</div>
-                    <div style="font-weight:500;">{{ $asset->description }}</div>
+                    <div style="font-weight:600;font-size:15px;">{{ $asset->description }}</div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                    <div><div style="font-size:12px;color:var(--gray-500);">Category</div><div>{{ $asset->category_name ?? 'Uncategorized' }}</div></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div><div style="font-size:12px;color:var(--gray-500);">Account / Category</div><div>{{ $asset->category_name ?? 'General Asset' }}</div></div>
                     <div><div style="font-size:12px;color:var(--gray-500);">Account Code</div><div>{{ $asset->account_code ?? 'N/A' }}</div></div>
                     <div><div style="font-size:12px;color:var(--gray-500);">Serial Number</div><div style="font-family:monospace;">{{ $asset->serial_number ?? 'N/A' }}</div></div>
                     <div><div style="font-size:12px;color:var(--gray-500);">Brand / Model</div><div>{{ $asset->brand ?? 'N/A' }} {{ $asset->model ?? '' }}</div></div>
-                    <div><div style="font-size:12px;color:var(--gray-500);">Condition</div><div style="text-transform:capitalize;">{{ $asset->condition }}</div></div>
-                    <div><div style="font-size:12px;color:var(--gray-500);">Acquisition Cost</div><div>₱{{ number_format($asset->acquisition_cost ?? 0, 2) }}</div></div>
+                    <div><div style="font-size:12px;color:var(--gray-500);">Physical Condition</div><div style="font-weight:600;">{{ $asset->condition }}</div></div>
+                    <div><div style="font-size:12px;color:var(--gray-500);">Acquisition Cost</div><div style="font-weight:600;">₱{{ number_format($asset->acquisition_cost ?? 0, 2) }}</div></div>
                     <div><div style="font-size:12px;color:var(--gray-500);">Acquisition Date</div><div>{{ $asset->acquisition_date ?? 'N/A' }}</div></div>
-                    <div><div style="font-size:12px;color:var(--gray-500);">Fund Source</div><div>{{ $asset->fund_source ?? 'N/A' }}</div></div>
+                    <div><div style="font-size:12px;color:var(--gray-500);">Fund Cluster / Source</div><div>{{ $asset->fund_cluster ?? $asset->fund_source ?? 'N/A' }}</div></div>
                 </div>
             </div>
             <div>
                 <div style="margin-bottom:12px;">
-                    <div style="font-size:12px;color:var(--gray-500);">Current Location</div>
-                    <div style="font-weight:500;">{{ $asset->office_name ?? 'Unassigned' }}</div>
+                    <div style="font-size:12px;color:var(--gray-500);">Current Location / Office</div>
+                    <div style="font-weight:600;">{{ $asset->office_name ?? 'Regional Office' }}</div>
                 </div>
                 <div style="margin-bottom:12px;">
-                    <div style="font-size:12px;color:var(--gray-500);">Custodian</div>
-                    <div style="font-weight:500;">{{ $asset->custodian_name ?? 'Unassigned' }}</div>
+                    <div style="font-size:12px;color:var(--gray-500);">Accountable Custodian</div>
+                    <div style="font-weight:600;">{{ $asset->custodian_name ?? 'Unassigned' }}</div>
                     @if($asset->par_number)
-                    <div style="font-size:12px;color:var(--gray-500);">PAR: {{ $asset->par_number }}</div>
+                    <div style="font-size:12px;color:var(--teal);margin-top:2px;">PAR No: {{ $asset->par_number }}</div>
                     @endif
                 </div>
                 @if($asset->remarks)
-                <div>
+                <div style="margin-bottom:12px;">
                     <div style="font-size:12px;color:var(--gray-500);">Remarks</div>
                     <div>{{ $asset->remarks }}</div>
                 </div>
                 @endif
-                <div style="margin-top:12px;display:flex;gap:8px;">
-                    <a href="{{ route('assets.edit', $asset->id) }}" class="btn btn-primary">✎ Edit</a>
-                    <button class="btn" onclick="showQRModal('{{ $asset->id }}', '{{ $asset->asset_code }}', '{{ $asset->description }}')">📱 QR</button>
-                    <a href="{{ route('assets.index') }}" class="btn">← Back</a>
+                <div style="margin-top:16px;display:flex;gap:8px;">
+                    <a href="{{ route('supply.assets.edit', $asset->asset_id ?? $asset->id) }}" class="btn btn-primary">✎ Edit Asset</a>
+                    <button class="btn" onclick="showQRModal('{{ $asset->asset_id ?? $asset->id }}', '{{ $asset->asset_code }}', '{{ addslashes($asset->description) }}')">📱 View QR Label</button>
+                    <a href="{{ route('supply.assets.index') }}" class="btn">← Back to Registry</a>
                 </div>
             </div>
         </div>
@@ -82,7 +84,7 @@
                 </div>
             </div>
             @empty
-            <div class="empty-state"><div class="ei">📍</div><div>No location history</div></div>
+            <div class="empty-state"><div class="ei">📍</div><div>No previous location changes recorded</div></div>
             @endforelse
         </div>
     </div>
@@ -95,11 +97,11 @@
                 <div class="trail-dot trail-dot-transfer">⇄</div>
                 <div class="trail-content">
                     <div class="trail-action">{{ $t->transfer_number }}</div>
-                    <div class="trail-meta">{{ $t->transfer_date }} · {{ ucfirst($t->status) }}</div>
+                    <div class="trail-meta">{{ $t->transfer_date }} · Status: {{ ucfirst($t->status) }}</div>
                 </div>
             </div>
             @empty
-            <div class="empty-state"><div class="ei">🔄</div><div>No transfer history</div></div>
+            <div class="empty-state"><div class="ei">🔄</div><div>No transfer movements recorded for this asset</div></div>
             @endforelse
         </div>
     </div>
@@ -113,10 +115,10 @@ function showQRModal(id, code, desc) {
                 <div class="qr-asset-code">${code}</div>
                 <div class="qr-wrap" id="modalQR"></div>
                 <div class="qr-asset-name">${desc}</div>
-                <div style="font-size:10px;color:rgba(255,255,255,.5);">National Irrigation Administration — RO IX</div>
+                <div style="font-size:10px;color:rgba(255,255,255,.6);">National Irrigation Administration — RO IX</div>
             </div>
-            <p style="font-size:12px;color:var(--gray-500);margin-bottom:12px;">Print this QR label and affix it to the physical asset.</p>
-            <button class="btn btn-primary" onclick="showToast('QR label sent to printer.')">🖨️ Print Label</button>
+            <p style="font-size:12px;color:var(--gray-500);margin-bottom:12px;">Physical QR property barcode label for tagging and audit scanning.</p>
+            <button class="btn btn-primary" onclick="window.print()">🖨️ Print Label</button>
         </div>
     `;
     showModal('QR Label — ' + code, content);
@@ -126,8 +128,8 @@ function showQRModal(id, code, desc) {
         if (el && typeof QRCode !== 'undefined') {
             new QRCode(el, {
                 text: code + '|' + desc + '|NIA RO IX',
-                width: 120,
-                height: 120,
+                width: 130,
+                height: 130,
                 colorDark: '#0F2044',
                 colorLight: '#ffffff'
             });

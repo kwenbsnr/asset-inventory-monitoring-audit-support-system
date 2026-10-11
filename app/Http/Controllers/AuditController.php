@@ -10,11 +10,15 @@ class AuditController extends Controller
     public function index(Request $request)
     {
         $query = DB::table('audit_trail')
-            ->join('personnel', 'audit_trail.performed_by', '=', 'personnel.id')
-            ->leftJoin('assets', 'audit_trail.asset_id', '=', 'assets.id')
+            ->leftJoin('users', 'audit_trail.performed_by', '=', 'users.users_id')
+            ->leftJoin('personnel', function($join) {
+                $join->on('users.personnel_id', '=', 'personnel.personnel_id')
+                     ->orOn('audit_trail.performed_by', '=', 'personnel.personnel_id');
+            })
+            ->leftJoin('assets', 'audit_trail.asset_id', '=', 'assets.asset_id')
             ->select(
                 'audit_trail.*',
-                'personnel.full_name as user_name',
+                DB::raw('COALESCE(personnel.full_name, users.username, "System") as user_name'),
                 'assets.asset_code',
                 'assets.description'
             );
@@ -38,7 +42,9 @@ class AuditController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('assets.asset_code', 'like', "%{$search}%")
                   ->orWhere('audit_trail.action_type', 'like', "%{$search}%")
-                  ->orWhere('personnel.full_name', 'like', "%{$search}%");
+                  ->orWhere('audit_trail.module', 'like', "%{$search}%")
+                  ->orWhere('personnel.full_name', 'like', "%{$search}%")
+                  ->orWhere('users.username', 'like', "%{$search}%");
             });
         }
 
@@ -58,11 +64,15 @@ class AuditController extends Controller
     public function export()
     {
         $logs = DB::table('audit_trail')
-            ->join('personnel', 'audit_trail.performed_by', '=', 'personnel.id')
-            ->leftJoin('assets', 'audit_trail.asset_id', '=', 'assets.id')
+            ->leftJoin('users', 'audit_trail.performed_by', '=', 'users.users_id')
+            ->leftJoin('personnel', function($join) {
+                $join->on('users.personnel_id', '=', 'personnel.personnel_id')
+                     ->orOn('audit_trail.performed_by', '=', 'personnel.personnel_id');
+            })
+            ->leftJoin('assets', 'audit_trail.asset_id', '=', 'assets.asset_id')
             ->select(
                 'audit_trail.performed_at as date',
-                'personnel.full_name as user',
+                DB::raw('COALESCE(personnel.full_name, users.username, "System") as user'),
                 'audit_trail.action_type as action',
                 'audit_trail.module as module',
                 'assets.asset_code as asset_code',

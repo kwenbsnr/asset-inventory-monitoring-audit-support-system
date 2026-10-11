@@ -10,7 +10,7 @@ class PersonnelController extends Controller
     public function index()
     {
         $personnel = DB::table('personnel')
-            ->leftJoin('offices', 'personnel.office_id', '=', 'offices.id')
+            ->leftJoin('offices', 'personnel.office_id', '=', 'offices.office_id')
             ->select('personnel.*', 'offices.name as office_name')
             ->orderBy('personnel.full_name')
             ->get();
@@ -36,7 +36,7 @@ class PersonnelController extends Controller
             'employee_id' => 'required|string|max:30|unique:personnel,employee_id',
             'position' => 'nullable|string|max:100',
             'designation' => 'nullable|string|max:100',
-            'office_id' => 'nullable|exists:offices,id'
+            'office_id' => 'nullable'
         ]);
 
         DB::table('personnel')->insert([
@@ -44,7 +44,7 @@ class PersonnelController extends Controller
             'employee_id' => $request->input('employee_id'),
             'position' => $request->input('position'),
             'designation' => $request->input('designation'),
-            'office_id' => $request->input('office_id'),
+            'office_id' => $request->input('office_id') ?: 1,
             'is_active' => 1,
             'created_at' => now()
         ]);
@@ -58,17 +58,18 @@ class PersonnelController extends Controller
             'full_name' => 'required|string|max:150',
             'position' => 'nullable|string|max:100',
             'designation' => 'nullable|string|max:100',
-            'office_id' => 'nullable|exists:offices,id',
+            'office_id' => 'nullable',
             'is_active' => 'required|boolean'
         ]);
 
         DB::table('personnel')
-            ->where('id', $id)
+            ->where('personnel_id', $id)
+            ->orWhere('id', $id)
             ->update([
                 'full_name' => $request->input('full_name'),
                 'position' => $request->input('position'),
                 'designation' => $request->input('designation'),
-                'office_id' => $request->input('office_id'),
+                'office_id' => $request->input('office_id') ?: 1,
                 'is_active' => $request->input('is_active')
             ]);
 
@@ -77,7 +78,11 @@ class PersonnelController extends Controller
 
     public function destroy(int $id)
     {
-        DB::table('personnel')->where('id', $id)->delete();
+        DB::table('personnel')
+            ->where('personnel_id', $id)
+            ->orWhere('id', $id)
+            ->delete();
+
         return redirect()->route('supply.custodians.index')->with('success', 'Personnel deleted successfully!');
     }
 }

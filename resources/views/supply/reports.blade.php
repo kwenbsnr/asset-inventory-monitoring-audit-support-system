@@ -1,82 +1,102 @@
 @extends('layouts.app')
 
-@section('title', 'Audit Trail')
-@section('subtitle', 'Full transaction history')
+@section('title', 'Reports & Analytics')
+@section('subtitle', 'Government property inventory compliance and audit reporting')
 
 @section('content')
-<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-    <div class="search-bar" style="max-width:300px;">
-        <span>🔍</span>
-        <input type="text" id="auditSearch" placeholder="Search by asset or action..." onkeyup="filterAudit()">
+<div class="grid-4">
+    <div class="metric-card accent-teal">
+        <div class="metric-label">Total Assets Recorded</div>
+        <div class="metric-value">{{ $totalAssets }}</div>
+        <div class="metric-sub metric-up">Complete Ledger</div>
     </div>
-    <select class="form-control" id="actionFilter" style="width:150px;" onchange="filterAudit()">
-        <option value="">All Actions</option>
-        @foreach($actionTypes as $type)
-            <option value="{{ $type }}">{{ ucfirst($type) }}</option>
-        @endforeach
-    </select>
-    <a href="{{ route('audit.export') }}" class="btn btn-sm">⬇ Export Log</a>
+    <div class="metric-card accent-green">
+        <div class="metric-label">Total Acquisition Cost</div>
+        <div class="metric-value">₱{{ number_format($totalValue, 2) }}</div>
+        <div class="metric-sub metric-up">Accountable Valuation</div>
+    </div>
+    <div class="metric-card accent-amber">
+        <div class="metric-label">Audit Verification Rate</div>
+        <div class="metric-value">{{ $accuracyRate }}%</div>
+        <div class="metric-sub" style="color:var(--gray-500);">Physical Count Coverage</div>
+    </div>
+    <div class="metric-card accent-navy">
+        <div class="metric-label">Active Account Classes</div>
+        <div class="metric-value">{{ count($categoryBreakdown) }}</div>
+        <div class="metric-sub" style="color:var(--gray-500);">Asset Classifications</div>
+    </div>
 </div>
 
-<div class="card">
-    <div class="card-header">
-        <span>📋</span><span class="card-title">System Audit Trail</span>
-        <span style="margin-left:auto;font-size:12px;color:var(--gray-500);" id="auditCount">{{ count($auditLogs) }} entries</span>
-    </div>
-    <div class="card-body" id="auditLogBody">
-        @forelse($auditLogs as $log)
-        <div class="trail-item" data-action="{{ $log->action_type }}">
-            <div class="trail-dot
-                @if($log->action_type == 'registration') trail-dot-reg
-                @elseif($log->action_type == 'transfer') trail-dot-transfer
-                @elseif($log->action_type == 'qr_scan') trail-dot-scan
-                @elseif($log->action_type == 'update') trail-dot-update
-                @else trail-dot-verify @endif">
-                @if($log->action_type == 'registration') ➕
-                @elseif($log->action_type == 'transfer') ⇄
-                @elseif($log->action_type == 'qr_scan') 📷
-                @elseif($log->action_type == 'update') ✎
-                @else ✓ @endif
-            </div>
-            <div class="trail-content">
-                <div class="trail-action">{{ $log->module }}</div>
-                <div class="trail-meta">
-                    {{ $log->asset_code ?? 'N/A' }} ·
-                    {{ $log->user_name }} ·
-                    {{ $log->performed_at }}
+<div class="grid-2" style="margin-top:16px;">
+    <div class="card">
+        <div class="card-header"><span>📑</span><span class="card-title">Generate Official Reports</span></div>
+        <div class="card-body">
+            <form action="{{ route('supply.reports.generate') }}" method="POST" target="_blank">
+                @csrf
+                <div class="form-group">
+                    <label class="form-label">Report Type / Schedule *</label>
+                    <select class="form-control" name="report_type" required>
+                        <option value="complete_inventory">Report on the Physical Count of Property (RPCPPE)</option>
+                        <option value="by_category">Inventory Breakdown by Account Classification</option>
+                        <option value="by_location">Asset Allocation by Station Office</option>
+                        <option value="custodian_assignment">Property Acknowledgment Receipt (PAR) Custodian Summary</option>
+                        <option value="transfer_history">Property Transfer Report (PTR) Movement History</option>
+                        <option value="unverified">Unverified & Pending Physical Count Assets</option>
+                        <option value="discrepancies">Inspection Discrepancies & Discrepancy Log</option>
+                        <option value="audit_trail_report">System Audit Trail & Security Transaction Log</option>
+                        <option value="for_disposal">Inventory and Inspection Report of Unserviceable Property (IIRUP)</option>
+                    </select>
                 </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Date From (optional)</label>
+                        <input class="form-control" name="date_from" type="date">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Date To (optional)</label>
+                        <input class="form-control" name="date_to" type="date">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Filter by Office Station (optional)</label>
+                    <select class="form-control" name="office_id">
+                        <option value="">All Regional & Field Stations</option>
+                        @foreach($offices as $office)
+                            <option value="{{ $office->office_id ?? $office->id }}">{{ $office->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px;">Generate & Preview Official Report →</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><span>📊</span><span class="card-title">Asset Classification Breakdown</span></div>
+        <div class="card-body" style="padding:0;">
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Account Classification</th>
+                            <th style="text-align:right;">Quantity</th>
+                            <th style="text-align:right;">Total Valuation (₱)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($categoryBreakdown as $cat)
+                        <tr>
+                            <td><strong>{{ $cat->category }}</strong></td>
+                            <td style="text-align:right;">{{ $cat->count }}</td>
+                            <td style="text-align:right;font-family:monospace;">₱{{ number_format($cat->total_value ?? 0, 2) }}</td>
+                        </tr>
+                        @empty
+                        <tr><td colspan="3" class="text-center" style="padding:20px;color:var(--gray-500);">No category data found</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </div>
-        @empty
-        <div class="empty-state">
-            <div class="ei">📭</div>
-            <div>No audit log entries found</div>
-        </div>
-        @endforelse
     </div>
 </div>
-
-<script>
-function filterAudit() {
-    const search = document.getElementById('auditSearch').value.toLowerCase();
-    const action = document.getElementById('actionFilter').value;
-
-    const items = document.querySelectorAll('#auditLogBody .trail-item');
-    let visible = 0;
-
-    items.forEach(item => {
-        const text = item.textContent.toLowerCase();
-        const itemAction = item.dataset.action || '';
-
-        let show = true;
-        if (search && !text.includes(search)) show = false;
-        if (action && itemAction !== action) show = false;
-
-        item.style.display = show ? '' : 'none';
-        if (show) visible++;
-    });
-
-    document.getElementById('auditCount').textContent = visible + ' entries';
-}
-</script>
 @endsection
