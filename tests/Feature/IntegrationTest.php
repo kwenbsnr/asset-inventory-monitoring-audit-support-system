@@ -308,10 +308,20 @@ class IntegrationTest extends TestCase
             'personnel_id' => 1
         ];
 
+        // Create temporary personnel for user test
+        $tempEmpId = 'TEMP-EMP-' . time();
+        $tempPersonnelId = DB::table('personnel')->insertGetId([
+            'full_name' => 'Admin Test Personnel',
+            'employee_id' => $tempEmpId,
+            'office_id' => 1,
+            'is_active' => 1,
+            'created_at' => now()
+        ]);
+
         $uname = 'testuser_' . time();
         // Create user
         $response = $this->withSession($adminSession)->post('/admin/users', [
-            'personnel_id' => 1,
+            'personnel_id' => $tempPersonnelId,
             'username' => $uname,
             'password' => 'secret123',
             'role' => 'supply_officer'
@@ -338,6 +348,8 @@ class IntegrationTest extends TestCase
 
         $deleted = DB::table('users')->where('username', $uname)->first();
         $this->assertNull($deleted);
+
+        DB::table('personnel')->where('personnel_id', $tempPersonnelId)->delete();
     }
 
     public function test_asset_update_and_destroy_workflow(): void

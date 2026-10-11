@@ -299,12 +299,23 @@ class AssetController extends Controller
             ->orWhere('id', $id)
             ->first();
 
-        DB::table('assets')
-            ->where('asset_id', $id)
-            ->orWhere('id', $id)
-            ->delete();
+        if ($asset) {
+            $realId = $asset->asset_id ?? $id;
 
-        $this->logAudit($id, 'deletion', 'Asset deleted', json_encode($asset), null);
+            // Log audit before deleting asset so FK constraint succeeds
+            $this->logAudit($realId, 'deletion', 'Asset deleted', json_encode($asset), null);
+
+            DB::transaction(function () use ($realId) {
+                DB::table('asset_custodies')->where('asset_id', $realId)->delete();
+                DB::table('asset_locations')->where('asset_id', $realId)->delete();
+                DB::table('asset_transfers')->where('asset_id', $realId)->delete();
+                DB::table('qr_scans')->where('asset_id', $realId)->delete();
+                DB::table('verification_records')->where('asset_id', $realId)->delete();
+                DB::table('asset_report_items')->where('asset_id', $realId)->delete();
+                DB::table('par_items')->where('asset_id', $realId)->delete();
+                DB::table('assets')->where('asset_id', $realId)->delete();
+            });
+        }
 
         return redirect()->route('supply.assets.index')->with('success', 'Asset deleted successfully!');
     }
